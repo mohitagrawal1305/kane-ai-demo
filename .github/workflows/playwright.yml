@@ -41,7 +41,7 @@ jobs:
 
       - name: 📤 Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v3.1.3
+        uses: actions/upload-artifact@v2
         with:
           name: playwright-report
           path: playwright-report
