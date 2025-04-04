@@ -1,7 +1,7 @@
-name: Test Artifact Upload
+name: Run Playwright E2E Tests
 
 on:
-  push:
+  pull_request:
     branches: [ main ]
 
 jobs:
