@@ -1,4 +1,4 @@
-name: Run E2E Tests (Playwright)
+name: Run Playwright E2E Tests
 
 on:
   pull_request:
@@ -9,37 +9,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout repo
         uses: actions/checkout@v3
 
-      - name: Setup Node.js
+      - name: 🧰 Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
 
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: npm install
 
-      - name: Install Playwright Browsers
+      - name: 🎭 Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: Start Vite App
+      - name: 🚀 Start Vite dev server
         run: npm run dev &
         env:
           CI: true
 
-      - name: Wait for App to be Ready
+      - name: 🕒 Wait for app to be ready
         run: |
           for i in {1..30}; do
             curl -s http://localhost:5173 && break
-            echo "Waiting for app to be ready..."
+            echo "Waiting for Vite app..."
             sleep 2
           done
 
-      - name: Run Playwright Tests
+      - name: 🧪 Run Playwright tests
         run: npx playwright test
 
-      - name: Upload Playwright Report (optional)
+      - name: 📤 Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v3
         with:
