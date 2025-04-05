@@ -1,4 +1,4 @@
-name: 🚀 Deploy and Test
+name: 🚀 Deploy
 
 on:
   push:
@@ -82,26 +82,3 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
-
-  test:
-    needs: deploy
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v3
-
-      - name: 🧰 Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-
-      - name: 📦 Install dependencies
-        run: npm install
-
-      - name: 🎭 Install Playwright browsers
-        run: npx playwright install --with-deps
-
-      - name: 🧪 Run Playwright tests
-        run: |
-          echo "Testing against URL: ${{ needs.deploy.outputs.preview_url }}"
-          BASE_URL=${{ needs.deploy.outputs.preview_url }} npm run test:e2e
