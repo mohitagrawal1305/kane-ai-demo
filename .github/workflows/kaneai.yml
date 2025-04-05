@@ -47,6 +47,8 @@ jobs:
             PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/${GITHUB_REF#refs/heads/}/"
           fi
           
+          echo "Preview URL: $PREVIEW_URL"
+          
           # Create JSON payload
           payload=$(cat <<EOF
           {
@@ -64,23 +66,36 @@ jobs:
           EOF
           )
           
-          # Make API call
-          response=$(curl --location 'https://test-manager-api.lambdatest.com/api/atm/v1/hyperexecute' \
+          echo "Payload: $payload"
+          
+          # Make API call with verbose output
+          response=$(curl --location --verbose 'https://api.lambdatest.com/automation/api/v1/hyperexecute' \
             --header 'accept: application/json' \
             --header 'Content-Type: application/json' \
             --header "Authorization: Basic $LAMBDATEST_AUTH" \
             --data "$payload")
           
           echo "Response: $response"
+          
+          # Check if response contains error
+          error_type=$(echo $response | jq -r '.type')
+          error_message=$(echo $response | jq -r '.message')
+          
+          if [[ "$error_type" == "error" ]]; then
+            echo "❌ API Error: $error_message"
+            exit 1
+          fi
+          
           job_id=$(echo $response | jq -r '.job_id')
           
           if [[ "$job_id" == "null" || -z "$job_id" ]]; then
             echo "❌ Failed to get job ID from response"
+            echo "Full response: $response"
             exit 1
           fi
           
           echo "job_id=$job_id" >> $GITHUB_OUTPUT
-          echo "Job ID: $job_id"
+          echo "✅ Job triggered successfully with ID: $job_id"
 
       - name: ⏳ Check Test Status
         run: |
