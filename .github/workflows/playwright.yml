@@ -1,15 +1,18 @@
-name: Run Playwright E2E Tests
+name: 🧪 Run Playwright Tests
 
 on:
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch name to test'
+        required: true
 
 jobs:
-  e2e-tests:
-    runs-on: ubuntu-22.04
+  e2e:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Checkout repo
+      - name: 📥 Checkout code
         uses: actions/checkout@v3
 
       - name: 🧰 Setup Node.js
@@ -23,25 +26,10 @@ jobs:
       - name: 🎭 Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: 🚀 Start Vite dev server
-        run: npm run dev &
+      - name: 🌐 Run E2E against deployed GitHub Pages
         env:
-          CI: true
-
-      - name: 🕒 Wait for app to be ready
+          BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.event.inputs.branch }}/
         run: |
-          for i in {1..30}; do
-            curl -s http://localhost:5173 && break
-            echo "Waiting for Vite app..."
-            sleep 2
-          done
-
-      - name: 🧪 Run Playwright tests
-        run: npx playwright test
-
-      - name: 📤 Upload Playwright HTML report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: report
-          path: playwright-report
+          echo "Testing on $BASE_URL"
+          echo "BASE_URL=$BASE_URL" > .env
+          npm run test:e2e

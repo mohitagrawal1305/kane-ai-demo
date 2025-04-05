@@ -1,12 +1,11 @@
-name: Deploy Branch Preview to GitHub Pages
+name: 🚀 Deploy to GitHub Pages
 
 on:
   push:
     branches:
-      - '**'  # Runs on every branch
+      - '**'
   workflow_dispatch:
 
-# Add permissions block
 permissions:
   contents: write
 
@@ -27,29 +26,23 @@ jobs:
         run: npm install
 
       - name: 🔧 Set branch env
-        id: set_branch
+        id: vars
         run: |
-          BRANCH_NAME=$(echo "${GITHUB_REF##*/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
-          echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          BRANCH=$(echo "${GITHUB_REF##*/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
 
       - name: 🛠️ Build Vite App
-        env:
-          BRANCH: ${{ steps.set_branch.outputs.branch-name }}
         run: |
-          echo "Branch name: $BRANCH"
-          npm run build
+          BRANCH=${{ steps.vars.outputs.branch }} npm run build
 
       - name: 🔧 Configure Git
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
 
-      - name: 🚀 Deploy to gh-pages/<branch-name>
+      - name: 🚀 Deploy to gh-pages
         env:
-          BRANCH: ${{ steps.set_branch.outputs.branch-name }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.vars.outputs.branch }}
         run: |
-          npx gh-pages -d dist \
-            -b gh-pages \
-            --dest "$BRANCH" \
-            -m "Deploying branch $BRANCH"
+          npm run deploy
