@@ -39,24 +39,46 @@ jobs:
           TEST_RUN_ID: ${{ secrets.KANEAI_TEST_RUN_ID }}
         run: |
           echo "Triggering KaneAI tests on LambdaTest"
+          
+          # Get the preview URL
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/pr-${{ github.event.pull_request.number }}/"
+          else
+            PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/${GITHUB_REF#refs/heads/}/"
+          fi
+          
+          # Create JSON payload
+          payload=$(cat <<EOF
+          {
+            "test_run_id": "$TEST_RUN_ID",
+            "concurrency": 2,
+            "title": "PR #${{ github.event.pull_request.number || github.ref_name }}",
+            "region": "centralindia",
+            "replaced_url": [
+              {
+                "pattern_url": "http://localhost:5173",
+                "replacement_url": "$PREVIEW_URL"
+              }
+            ]
+          }
+          EOF
+          )
+          
+          # Make API call
           response=$(curl --location 'https://test-manager-api.lambdatest.com/api/atm/v1/hyperexecute' \
             --header 'accept: application/json' \
             --header 'Content-Type: application/json' \
-            --header 'Authorization: Basic ${{ secrets.LAMBDATEST_AUTH }}' \
-            --data '{
-                "test_run_id": "${{ secrets.KANEAI_TEST_RUN_ID }}",
-                "concurrency": 2,
-                "title": "PR #${{ github.event.pull_request.number || github.ref_name }}",
-                "region": "centralindia",
-                "replaced_url": [
-                    {
-                        "pattern_url": https://mohitagrawal1305.github.io/kane-ai-demo/mohitagrawal1305-patch-1/",
-                        "replacement_url": "${{ steps.wait-for-deployment.outputs.url }}"
-                    }
-                ]
-            }')
+            --header "Authorization: Basic $LAMBDATEST_AUTH" \
+            --data "$payload")
+          
           echo "Response: $response"
           job_id=$(echo $response | jq -r '.job_id')
+          
+          if [[ "$job_id" == "null" || -z "$job_id" ]]; then
+            echo "❌ Failed to get job ID from response"
+            exit 1
+          fi
+          
           echo "job_id=$job_id" >> $GITHUB_OUTPUT
           echo "Job ID: $job_id"
 
