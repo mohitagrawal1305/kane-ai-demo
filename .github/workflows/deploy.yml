@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write  # Needed for PR comments
 
 jobs:
   deploy:
@@ -58,9 +59,18 @@ jobs:
           echo "✅ Preview URL: $URL"
           echo "url=$URL" >> $GITHUB_OUTPUT
 
-      - name: 📣 Comment on PR (optional)
-        if: github.event_name == 'pull_request'
+      - name: 🔍 Find PR for this branch (if any)
+        uses: peter-evans/find-pull-request@v5
+        id: pr
+        with:
+          state: open
+          head-branch: ${{ github.ref_name }}
+
+      - name: 💬 Comment Preview URL on PR
+        if: steps.pr.outputs.number
         uses: marocchino/sticky-pull-request-comment@v2
         with:
+          number: ${{ steps.pr.outputs.number }}
           message: |
-            🚀 Preview deployed: ${{ steps.url.outputs.url }}
+            🚀 **Preview deployed for this branch**  
+            👉 ${{ steps.url.outputs.url }}
