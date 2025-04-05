@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "deploy": "gh-pages -d dist -b gh-pages --dest $BRANCH --repo https://x-access-token:${GH_TOKEN}@github.com/mohitagrawal1305/kane-ai-demo.git"
+    "deploy": "gh-pages -d dist -b gh-pages --dest $BRANCH"
+
   },
   "dependencies": {
     "react": "^19.0.0",
