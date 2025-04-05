@@ -8,8 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:e2e": "playwright test",
-    "deploy": "gh-pages -d dist -b gh-pages --dest $BRANCH"
+    "test:e2e": "playwright test"
 
   },
   "dependencies": {

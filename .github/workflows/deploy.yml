@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write  # Needed for PR comments
+  pull-requests: write
 
 jobs:
   deploy:
@@ -34,21 +34,16 @@ jobs:
 
       - name: 🛠️ Build with branch-specific base
         run: |
-          BRANCH=${{ steps.branch.outputs.branch }}
-          echo "Building with base: /$BRANCH/"
-          BRANCH=$BRANCH npm run build
+          echo "Building with base: /${{ steps.branch.outputs.branch }}/"
+          BRANCH=${{ steps.branch.outputs.branch }} npm run build
 
-      - name: ⚙️ Git config for deploy
-        run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-
-      - name: 🚀 Deploy to GitHub Pages
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ steps.branch.outputs.branch }}
-        run: |
-          npm run deploy
+      - name: 🚀 Deploy using peaceiris/actions-gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+          destination_dir: ${{ steps.branch.outputs.branch }}
 
       - name: 🔗 Output Deployed URL
         id: url
@@ -56,12 +51,18 @@ jobs:
           BRANCH=${{ steps.branch.outputs.branch }}
           REPO=${GITHUB_REPOSITORY#*/}
           URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/$REPO/$BRANCH/"
-          echo "✅ Preview URL: $URL"
           echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "✅ Preview URL: $URL"
 
+      - name: 🔍 Find PR number
+        id: pr
+        uses: peter-evans/find-pull-request@v5
+        with:
+          state: open
+          head-branch: ${{ github.ref_name }}
 
       - name: 💬 Comment Preview URL on PR
-        if: steps.pr.outputs.number
+        if: steps.pr.outputs.number != ''
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           number: ${{ steps.pr.outputs.number }}
