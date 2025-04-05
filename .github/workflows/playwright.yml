@@ -1,21 +1,32 @@
-name: Run Playwright E2E Tests
+name: 🧪 Run Tests
 
 on:
-  pull_request:
-    branches: [ main ]
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
 
 jobs:
-  e2e-tests:
-    runs-on: ubuntu-22.04
-
+  test:
+    runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout repo
+      - name: 🔍 Get branch info
+        id: branch-info
+        run: |
+          echo "ref=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+          echo "sha=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+
+      - name: 📥 Checkout Code
         uses: actions/checkout@v3
+        with:
+          ref: ${{ steps.branch-info.outputs.ref }}
+          fetch-depth: 0
 
       - name: 🧰 Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
+          cache: 'npm'
 
       - name: 📦 Install dependencies
         run: npm install
@@ -23,25 +34,67 @@ jobs:
       - name: 🎭 Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: 🚀 Start Vite dev server
-        run: npm run dev &
-        env:
-          CI: true
+      - name: ⌛ Wait for deploy workflow
+        uses: lewagon/wait-on-check-action@v1.3.1
+        with:
+          ref: ${{ steps.branch-info.outputs.sha }}
+          check-name: deploy
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
 
-      - name: 🕒 Wait for app to be ready
+      - name: ⌛ Wait for deployment to be accessible
+        id: wait-for-deployment
         run: |
-          for i in {1..30}; do
-            curl -s http://localhost:5173 && break
-            echo "Waiting for Vite app..."
-            sleep 2
+          BRANCH="${{ steps.branch-info.outputs.ref }}"
+          REPO=${GITHUB_REPOSITORY#*/}
+          PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/$REPO/$BRANCH/"
+          echo "Waiting for deployment at: $PREVIEW_URL"
+          
+          # Function to check if URL is accessible
+          check_url() {
+            curl --output /dev/null --silent --head --fail "$1"
+            return $?
+          }
+          
+          # Wait for up to 2 minutes
+          TIMEOUT=120
+          while [ $TIMEOUT -gt 0 ]; do
+            if check_url "$PREVIEW_URL"; then
+              echo "✅ Deployment is ready!"
+              echo "url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+              break
+            fi
+            echo "Waiting for deployment... ($TIMEOUT seconds remaining)"
+            sleep 10
+            TIMEOUT=$((TIMEOUT-10))
           done
+          
+          if [ $TIMEOUT -eq 0 ]; then
+            echo "❌ Deployment not ready after 2 minutes"
+            exit 1
+          fi
 
       - name: 🧪 Run Playwright tests
-        run: npx playwright test
+        env:
+          BASE_URL: ${{ steps.wait-for-deployment.outputs.url }}
+        run: |
+          # Remove trailing slash if present
+          BASE_URL_CLEAN=$(echo "$BASE_URL" | sed 's/\/$//')
+          echo "Running tests against: $BASE_URL_CLEAN"
+          
+          # Add debug output
+          echo "GitHub Repository Owner: ${GITHUB_REPOSITORY_OWNER}"
+          echo "GitHub Repository: ${GITHUB_REPOSITORY}"
+          echo "Branch: ${{ steps.branch-info.outputs.ref }}"
+          echo "Full URL being tested: $BASE_URL_CLEAN"
+          
+          # Run the tests with the cleaned URL
+          BASE_URL="$BASE_URL_CLEAN" npm run test:e2e
 
-      - name: 📤 Upload Playwright HTML report
+      - name: 📊 Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: report
-          path: playwright-report
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30 

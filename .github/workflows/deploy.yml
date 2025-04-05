@@ -1,0 +1,131 @@
+name: 🚀 Deploy
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      preview_url: ${{ steps.url.outputs.url }}
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.DEPLOY_TOKEN }}
+
+      - name: 🧰 Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: 📦 Install dependencies
+        run: npm install
+
+      - name: 🔧 Get branch name
+        id: branch
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # For PRs, use the PR number instead of branch name
+            echo "branch=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            # For direct pushes, use the branch name
+            BRANCH=$(echo "${GITHUB_REF#refs/heads/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
+            echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🛠️ Build with branch-specific base
+        run: |
+          echo "Building with base: $(echo $GITHUB_REPOSITORY)/${{ steps.branch.outputs.branch }}/"
+          npm run build
+
+      - name: 🔧 Configure Git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+      - name: 🔗 Output Deployed URL
+        id: url
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # For PRs, use the head branch name
+            BRANCH="${{ github.event.pull_request.head.ref }}"
+          else
+            # For direct pushes, use the branch name
+            BRANCH="${GITHUB_REF#refs/heads/}"
+          fi
+          
+          # Clean branch name for URL
+          BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9._-]/-/g')
+          REPO=${GITHUB_REPOSITORY#*/}
+          URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/$REPO/$BRANCH/"
+          
+          echo "✅ Preview URL: $URL"
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
+      - name: 🚀 Deploy to GitHub Pages
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          BRANCH: ${{ steps.url.outputs.branch }}  # Use the same branch name from URL step
+        run: |
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+          npx gh-pages -d dist \
+            -b gh-pages \
+            --dest $BRANCH \
+            -m "Deploy preview for $BRANCH"
+
+      - name: 💬 Comment Preview URL on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const url = '${{ steps.url.outputs.url }}';
+            const newComment = `## 🚀 Preview Deployment
+
+            Your preview deployment is ready!
+
+            **Preview URL**: ${url}
+
+            > Note: This preview will be automatically updated when you push new changes to this PR.`;
+            
+            // Find existing bot comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('🚀 Preview Deployment')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: newComment
+              });
+            } else {
+              // Create new comment if none exists
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: newComment
+              });
+            }
