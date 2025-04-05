@@ -34,16 +34,20 @@ jobs:
 
       - name: 🛠️ Build with branch-specific base
         run: |
-          echo "Building with base: /${{ steps.branch.outputs.branch }}/"
-          BRANCH=${{ steps.branch.outputs.branch }} npm run build
+          BRANCH=${{ steps.branch.outputs.branch }}
+          echo "Building with base: /$BRANCH/"
+          BRANCH=$BRANCH npm run build
 
-      - name: 🚀 Deploy using peaceiris/actions-gh-pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          publish_branch: gh-pages
-          destination_dir: ${{ steps.branch.outputs.branch }}
+      - name: 🚀 Deploy to GitHub Pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+        run: |
+          npx gh-pages -d dist \
+            -b gh-pages \
+            --dest $BRANCH \
+            -u "github-actions[bot] <github-actions[bot]@users.noreply.github.com>" \
+            -m "Deploy preview for $BRANCH"
 
       - name: 🔗 Output Deployed URL
         id: url
@@ -51,21 +55,21 @@ jobs:
           BRANCH=${{ steps.branch.outputs.branch }}
           REPO=${GITHUB_REPOSITORY#*/}
           URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/$REPO/$BRANCH/"
-          echo "url=$URL" >> $GITHUB_OUTPUT
           echo "✅ Preview URL: $URL"
+          echo "url=$URL" >> $GITHUB_OUTPUT
 
       - name: 🔍 Find PR number
         id: pr
-        uses: peter-evans/find-pull-request@v5
+        uses: peter-evans/find-pull-request@v5.0.0
         with:
           state: open
           head-branch: ${{ github.ref_name }}
 
       - name: 💬 Comment Preview URL on PR
-        if: steps.pr.outputs.number != ''
+        if: steps.pr.outputs.number
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           number: ${{ steps.pr.outputs.number }}
           message: |
-            🚀 **Preview deployed for this branch**  
+            🚀 **Preview deployed for this branch**
             👉 ${{ steps.url.outputs.url }}
