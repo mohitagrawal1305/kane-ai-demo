@@ -11,6 +11,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  deployments: write
+  statuses: write
 
 jobs:
   deploy:
@@ -72,13 +74,22 @@ jobs:
       - name: 🚀 Deploy to GitHub Pages
         env:
           GH_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
-          BRANCH: ${{ steps.url.outputs.branch }}  # Use the same branch name from URL step
+          BRANCH: ${{ steps.url.outputs.branch }}
         run: |
           git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
           npx gh-pages -d dist \
             -b gh-pages \
             --dest $BRANCH \
             -m "Deploy preview for $BRANCH"
+
+      - name: ⌛ Wait for GitHub Pages Deployment
+        uses: lewagon/wait-on-check-action@v1.3.1
+        with:
+          ref: gh-pages
+          check-name: 'pages build and deployment'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+          timeout-seconds: 600  # 10 minutes timeout
 
       - name: 💬 Comment Preview URL on PR
         if: github.event_name == 'pull_request'
