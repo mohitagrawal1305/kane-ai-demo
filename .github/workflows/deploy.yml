@@ -37,10 +37,11 @@ jobs:
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
 
       - name: 🛠️ Build with branch-specific base
+        env:
+          BRANCH: ${{ steps.branch.outputs.branch }}
         run: |
-          BRANCH=${{ steps.branch.outputs.branch }}
           echo "Building with base: /$BRANCH/"
-          BRANCH=$BRANCH npm run build
+          npm run build
 
       - name: 🔧 Configure Git
         run: |
