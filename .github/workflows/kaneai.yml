@@ -8,6 +8,11 @@ on:
       - main
   workflow_dispatch:
 
+# Add permissions block
+permissions:
+  pull-requests: write
+  issues: write
+
 jobs:
   kaneai-test:
     name: Run Kane AI Tests
