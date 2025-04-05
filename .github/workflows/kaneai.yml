@@ -96,7 +96,8 @@ jobs:
             exit 1
           fi
           
-          job_id=$(echo "$response" | jq -r '.job_id // empty')
+          # Extract job ID from response
+          job_id=$(echo "$response" | jq -r '.jobID // .job_id // empty')
           
           if [[ -z "$job_id" ]]; then
             echo "❌ Failed to get job ID from response"
