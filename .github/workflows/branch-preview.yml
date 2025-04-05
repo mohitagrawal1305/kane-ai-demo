@@ -6,6 +6,10 @@ on:
       - '**'  # Runs on every branch
   workflow_dispatch:
 
+# Add permissions block
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
