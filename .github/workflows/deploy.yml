@@ -22,7 +22,7 @@ jobs:
     if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
-      name: github-pages
+      name: ${{ github.event_name == 'pull_request' && 'preview' || 'github-pages' }}
       url: ${{ steps.url.outputs.url }}
     outputs:
       preview_url: ${{ steps.url.outputs.url }}
@@ -31,7 +31,7 @@ jobs:
       - name: 📥 Checkout Code
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.DEPLOY_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🧰 Setup Node.js
         uses: actions/setup-node@v3
