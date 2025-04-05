@@ -1,0 +1,114 @@
+name: 🤖 KaneAI Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  kaneai-test:
+    name: Run Kane AI Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔍 Get branch info
+        id: branch-info
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "ref=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+            echo "sha=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          else
+            echo "ref=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+            echo "sha=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: ⌛ Wait for deploy workflow
+        uses: lewagon/wait-on-check-action@v1.3.1
+        with:
+          ref: ${{ steps.branch-info.outputs.sha }}
+          check-name: deploy
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+
+      - name: 🚀 Trigger KaneAI Tests
+        id: trigger-test
+        env:
+          LAMBDATEST_AUTH: ${{ secrets.LAMBDATEST_AUTH }}
+          TEST_RUN_ID: ${{ secrets.KANEAI_TEST_RUN_ID }}
+        run: |
+          echo "Triggering KaneAI tests on LambdaTest"
+          response=$(curl --location 'https://test-manager-api.lambdatest.com/api/atm/v1/hyperexecute' \
+            --header 'accept: application/json' \
+            --header 'Content-Type: application/json' \
+            --header 'Authorization: Basic ${{ secrets.LAMBDATEST_AUTH }}' \
+            --data '{
+                "test_run_id": "${{ secrets.KANEAI_TEST_RUN_ID }}",
+                "concurrency": 2,
+                "title": "PR #${{ github.event.pull_request.number || github.ref_name }}",
+                "region": "centralindia",
+                "replaced_url": [
+                    {
+                        "pattern_url": https://mohitagrawal1305.github.io/kane-ai-demo/mohitagrawal1305-patch-1/",
+                        "replacement_url": "${{ steps.wait-for-deployment.outputs.url }}"
+                    }
+                ]
+            }')
+          echo "Response: $response"
+          job_id=$(echo $response | jq -r '.job_id')
+          echo "job_id=$job_id" >> $GITHUB_OUTPUT
+          echo "Job ID: $job_id"
+
+      - name: ⏳ Check Test Status
+        run: |
+          echo "Checking test status"
+          job_id=${{ steps.trigger-test.outputs.job_id }}
+          
+          # Function to check job status
+          check_status() {
+            curl --location "https://api.hyperexecute.cloud/v2.0/job/$job_id" \
+              --header "accept: application/json" \
+              --header "Authorization: Basic ${{ secrets.LAMBDATEST_AUTH }}"
+          }
+          
+          # Wait for up to 10 minutes
+          for i in {1..20}; do
+            response=$(check_status)
+            status=$(echo $response | jq -r '.data.status')
+            echo "Test status: $status"
+            
+            if [[ "$status" == "completed" ]]; then
+              echo "✅ Tests completed successfully"
+              exit 0
+            elif [[ "$status" == "failed" || "$status" == "error" ]]; then
+              echo "❌ Tests failed"
+              exit 1
+            fi
+            
+            echo "Waiting 30 seconds before next check..."
+            sleep 30
+          done
+          
+          echo "❌ Timeout waiting for tests to complete"
+          exit 1
+
+      - name: 💬 Comment Test Results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const jobId = '${{ steps.trigger-test.outputs.job_id }}';
+            const comment = `## 🤖 KaneAI Test Results
+            
+            Test execution completed! View detailed results here:
+            [View Test Results](https://hyperexecute.lambdatest.com/hyperexecute/task?jobId=${jobId})
+            `;
+            
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            }); 
