@@ -1,0 +1,168 @@
+name: 🤖 KaneAI Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Add permissions block
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  kaneai-test:
+    name: Run Kane AI Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔍 Get branch info
+        id: branch-info
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "ref=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+            echo "sha=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          else
+            echo "ref=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+            echo "sha=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: ⌛ Wait for deploy workflow
+        uses: lewagon/wait-on-check-action@v1.3.1
+        with:
+          ref: ${{ steps.branch-info.outputs.sha }}
+          check-name: deploy
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+
+      - name: 🚀 Trigger KaneAI Tests
+        id: trigger-test
+        env:
+          LAMBDATEST_AUTH: ${{ secrets.LAMBDATEST_AUTH }}
+          TEST_RUN_ID: ${{ secrets.KANEAI_TEST_RUN_ID }}
+        run: |
+          echo "Triggering KaneAI tests on LambdaTest"
+          
+          # Get the preview URL
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/${{ github.event.pull_request.head.ref }}/"
+          else
+            PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/${GITHUB_REF#refs/heads/}/"
+          fi
+          
+          echo "Preview URL: $PREVIEW_URL"
+          
+          # Create JSON payload
+          payload=$(cat <<EOF
+          {
+            "test_run_id": "$TEST_RUN_ID",
+            "concurrency": 1,
+            "replaced_url": [
+              {
+                "pattern_url": "https://mohitagrawal1305.github.io/kane-ai-demo/mohitagrawal1305-patch-1/",
+                "replacement_url": "$PREVIEW_URL"
+              }
+            ]
+          }
+          EOF
+          )
+          
+          echo "Payload: $payload"
+          
+          # Make API call with verbose output
+          response=$(curl --location --verbose 'https://test-manager-api.lambdatest.com/api/atm/v1/hyperexecute' \
+            --header 'accept: application/json' \
+            --header 'Content-Type: application/json' \
+            --header "Authorization: Basic $LAMBDATEST_AUTH" \
+            --data "$payload")
+          
+          echo "Response: $response"
+          
+          # Check if response is a plain text error
+          if [[ "$response" == *"404"* || "$response" == *"page not found"* ]]; then
+            echo "❌ API Error: Invalid endpoint or authentication"
+            exit 1
+          fi
+          
+          # Try to parse JSON response
+          if ! echo "$response" | jq . >/dev/null 2>&1; then
+            echo "❌ Invalid JSON response: $response"
+            exit 1
+          fi
+          
+          # Check for error in JSON response
+          error_type=$(echo "$response" | jq -r '.type // empty')
+          error_message=$(echo "$response" | jq -r '.message // empty')
+          
+          if [[ -n "$error_type" && "$error_type" == "error" ]]; then
+            echo "❌ API Error: $error_message"
+            exit 1
+          fi
+          
+          # Extract job ID from response
+          job_id=$(echo "$response" | jq -r '.job_id // empty')
+          
+          if [[ -z "$job_id" ]]; then
+            echo "❌ Failed to get job ID from response"
+            echo "Full response: $response"
+            exit 1
+          fi
+          
+          echo "job_id=$job_id" >> $GITHUB_OUTPUT
+          echo "✅ Job triggered successfully with ID: $job_id"
+          echo "Job link: $(echo "$response" | jq -r '.job_link // empty')"
+
+      - name: ⏳ Check Test Status
+        run: |
+          echo "Checking test status"
+          job_id=${{ steps.trigger-test.outputs.job_id }}
+          
+          # Function to check job status
+          check_status() {
+            curl --location "https://api.hyperexecute.cloud/v2.0/job/$job_id" \
+              --header "accept: application/json" \
+              --header "Authorization: Basic ${{ secrets.LAMBDATEST_AUTH }}"
+          }
+          
+          # Wait for up to 10 minutes
+          for i in {1..20}; do
+            response=$(check_status)
+            status=$(echo $response | jq -r '.data.status')
+            echo "Test status: $status"
+            
+            if [[ "$status" == "completed" ]]; then
+              echo "✅ Tests completed successfully"
+              exit 0
+            elif [[ "$status" == "failed" || "$status" == "error" ]]; then
+              echo "❌ Tests failed"
+              exit 1
+            fi
+            
+            echo "Waiting 30 seconds before next check..."
+            sleep 30
+          done
+          
+          echo "❌ Timeout waiting for tests to complete"
+          exit 1
+
+      - name: 💬 Comment Test Results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const jobId = '${{ steps.trigger-test.outputs.job_id }}';
+            const comment = `## 🤖 KaneAI Test Results
+            
+            Test execution completed! View detailed results here:
+            [View Test Results](https://hyperexecute.lambdatest.com/hyperexecute/task?jobId=${jobId})
+            `;
+            
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            }); 
