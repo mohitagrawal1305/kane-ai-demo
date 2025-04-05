@@ -35,8 +35,14 @@ jobs:
       - name: 🔧 Get branch name
         id: branch
         run: |
-          BRANCH=$(echo "${GITHUB_REF##*/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
-          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # For PRs, use the PR number instead of branch name
+            echo "branch=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            # For direct pushes, use the branch name
+            BRANCH=$(echo "${GITHUB_REF#refs/heads/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
+            echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          fi
 
       - name: 🛠️ Build with branch-specific base
         run: |
