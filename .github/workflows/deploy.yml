@@ -1,4 +1,4 @@
-name: 🚀 Deploy to GitHub Pages
+name: 🚀 Deploy Vite App to GitHub Pages (Per Branch)
 
 on:
   push:
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Checkout code
+      - name: 📥 Checkout Code
         uses: actions/checkout@v3
 
       - name: 🧰 Setup Node.js
@@ -25,24 +25,42 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
-      - name: 🔧 Set branch env
-        id: vars
+      - name: 🔧 Get branch name
+        id: branch
         run: |
           BRANCH=$(echo "${GITHUB_REF##*/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
 
-      - name: 🛠️ Build Vite App
+      - name: 🛠️ Build with branch-specific base
         run: |
-          BRANCH=${{ steps.vars.outputs.branch }} npm run build
+          BRANCH=${{ steps.branch.outputs.branch }}
+          echo "Building with base: /$BRANCH/"
+          BRANCH=$BRANCH npm run build
 
-      - name: 🔧 Configure Git
+      - name: ⚙️ Git config for deploy
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
 
-      - name: 🚀 Deploy to gh-pages
+      - name: 🚀 Deploy to GitHub Pages
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ steps.vars.outputs.branch }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
         run: |
           npm run deploy
+
+      - name: 🔗 Output Deployed URL
+        id: url
+        run: |
+          BRANCH=${{ steps.branch.outputs.branch }}
+          REPO=${GITHUB_REPOSITORY#*/}
+          URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/$REPO/$BRANCH/"
+          echo "✅ Preview URL: $URL"
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+      - name: 📣 Comment on PR (optional)
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          message: |
+            🚀 Preview deployed: ${{ steps.url.outputs.url }}
