@@ -43,6 +43,7 @@ jobs:
       - name: 🚀 Deploy to gh-pages/<branch-name>
         env:
           BRANCH: ${{ steps.set_branch.outputs.branch-name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npx gh-pages -d dist \
             -b gh-pages \
