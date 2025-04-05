@@ -54,25 +54,36 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
 
+      - name: 🔗 Output Deployed URL
+        id: url
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # For PRs, use the head branch name
+            BRANCH="${{ github.event.pull_request.head.ref }}"
+          else
+            # For direct pushes, use the branch name
+            BRANCH="${GITHUB_REF#refs/heads/}"
+          fi
+          
+          # Clean branch name for URL
+          BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9._-]/-/g')
+          REPO=${GITHUB_REPOSITORY#*/}
+          URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/$REPO/$BRANCH/"
+          
+          echo "✅ Preview URL: $URL"
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
       - name: 🚀 Deploy to GitHub Pages
         env:
           GH_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
-          BRANCH: ${{ steps.branch.outputs.branch }}
+          BRANCH: ${{ steps.url.outputs.branch }}  # Use the same branch name from URL step
         run: |
           git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
           npx gh-pages -d dist \
             -b gh-pages \
             --dest $BRANCH \
             -m "Deploy preview for $BRANCH"
-
-      - name: 🔗 Output Deployed URL
-        id: url
-        run: |
-          BRANCH=${{ steps.branch.outputs.branch }}
-          REPO=${GITHUB_REPOSITORY#*/}
-          URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/$REPO/$BRANCH/"
-          echo "✅ Preview URL: $URL"
-          echo "url=$URL" >> $GITHUB_OUTPUT
 
       - name: 💬 Comment Preview URL on PR
         if: github.event_name == 'pull_request'
