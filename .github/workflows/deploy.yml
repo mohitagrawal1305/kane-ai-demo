@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: 📥 Checkout Code
         uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.DEPLOY_TOKEN }}
 
       - name: 🧰 Setup Node.js
         uses: actions/setup-node@v3
@@ -50,6 +52,7 @@ jobs:
           GH_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
           BRANCH: ${{ steps.branch.outputs.branch }}
         run: |
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
           npx gh-pages -d dist \
             -b gh-pages \
             --dest $BRANCH \
