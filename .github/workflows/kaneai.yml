@@ -69,7 +69,7 @@ jobs:
           echo "Payload: $payload"
           
           # Make API call with verbose output
-          response=$(curl --location --verbose 'https://api.lambdatest.com/automation/api/v1/hyperexecute/run' \
+          response=$(curl --location --verbose 'https://test-manager-api.lambdatest.com/api/atm/v1/hyperexecute' \
             --header 'accept: application/json' \
             --header 'Content-Type: application/json' \
             --header "Authorization: Basic $LAMBDATEST_AUTH" \
