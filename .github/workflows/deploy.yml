@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - '**'
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
@@ -73,8 +75,13 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const url = '${{ steps.url.outputs.url }}';
-            const comment = `🚀 **Preview deployed for this branch**
-            👉 ${url}`;
+            const comment = `## 🚀 Preview Deployment
+
+            Your preview deployment is ready!
+
+            **Preview URL**: ${url}
+
+            > Note: This preview will be automatically updated when you push new changes to this PR.`;
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
