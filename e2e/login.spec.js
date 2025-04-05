@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('Login and increment counter', async ({ page }) => {
-  await page.goto('http://localhost:5173');
+  await page.goto('/');
   await page.fill('input[placeholder="Username"]', 'admin');
   await page.fill('input[placeholder="Password"]', 'password');
   await page.click('text=Login');

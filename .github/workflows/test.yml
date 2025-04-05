@@ -1,14 +1,16 @@
 name: 🧪 Run Tests
 
 on:
-  pull_request:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["🚀 Deploy"]
+    types:
+      - completed
   workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: 📥 Checkout Code
         uses: actions/checkout@v3
@@ -24,9 +26,17 @@ jobs:
       - name: 🎭 Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: ⌛ Wait for deployment
+      - name: ⌛ Wait for deployment to be accessible
         run: |
-          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          # Get the branch name
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # For workflow_run events, get the branch from the triggering workflow
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+          else
+            # For manual triggers, get the current branch
+            BRANCH=${GITHUB_REF#refs/heads/}
+          fi
+          
           REPO=${GITHUB_REPOSITORY#*/}
           PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/$REPO/$BRANCH/"
           echo "Waiting for deployment at: $PREVIEW_URL"
@@ -53,14 +63,14 @@ jobs:
             echo "❌ Deployment not ready after 2 minutes"
             exit 1
           fi
+          
+          # Export the URL for later steps
+          echo "PREVIEW_URL=$PREVIEW_URL" >> $GITHUB_ENV
 
       - name: 🧪 Run Playwright tests
-        run: |
-          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
-          REPO=${GITHUB_REPOSITORY#*/}
-          PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/$REPO/$BRANCH/"
-          echo "Testing against URL: $PREVIEW_URL"
-          BASE_URL=$PREVIEW_URL npm run test:e2e
+        env:
+          BASE_URL: ${{ env.PREVIEW_URL }}
+        run: npm run test:e2e
 
       - name: 📊 Upload test results
         if: always()
