@@ -36,7 +36,7 @@ jobs:
         id: trigger-test
         env:
           LAMBDATEST_AUTH: ${{ secrets.LAMBDATEST_AUTH }}
-          TEST_RUN_ID: ${{ secrets.KANEAI_TEST_RUN_ID }}
+          TEST_RUN_ID: e65718d5-e2c9-4186-a531-feb899f11546 #${{ secrets.KANEAI_TEST_RUN_ID }}
         run: |
           echo "Triggering KaneAI tests on LambdaTest"
           
