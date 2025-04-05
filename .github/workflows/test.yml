@@ -16,14 +16,6 @@ jobs:
           echo "ref=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
           echo "sha=${GITHUB_SHA}" >> $GITHUB_OUTPUT
 
-      - name: ⌛ Wait for deploy workflow
-        uses: lewagon/wait-on-check-action@v1.3.1
-        with:
-          ref: ${{ steps.branch-info.outputs.sha }}
-          check-name: deploy
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 10
-
       - name: 📥 Checkout Code
         uses: actions/checkout@v3
         with:
@@ -41,6 +33,14 @@ jobs:
 
       - name: 🎭 Install Playwright browsers
         run: npx playwright install --with-deps
+
+      - name: ⌛ Wait for deploy workflow
+        uses: lewagon/wait-on-check-action@v1.3.1
+        with:
+          ref: ${{ steps.branch-info.outputs.sha }}
+          check-name: deploy
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
 
       - name: ⌛ Wait for deployment to be accessible
         id: wait-for-deployment
@@ -81,6 +81,14 @@ jobs:
           # Remove trailing slash if present
           BASE_URL_CLEAN=$(echo "$BASE_URL" | sed 's/\/$//')
           echo "Running tests against: $BASE_URL_CLEAN"
+          
+          # Add debug output
+          echo "GitHub Repository Owner: ${GITHUB_REPOSITORY_OWNER}"
+          echo "GitHub Repository: ${GITHUB_REPOSITORY}"
+          echo "Branch: ${{ steps.branch-info.outputs.ref }}"
+          echo "Full URL being tested: $BASE_URL_CLEAN"
+          
+          # Run the tests with the cleaned URL
           BASE_URL="$BASE_URL_CLEAN" npm run test:e2e
 
       - name: 📊 Upload test results
