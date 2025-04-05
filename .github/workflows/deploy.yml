@@ -46,7 +46,7 @@ jobs:
           npx gh-pages -d dist \
             -b gh-pages \
             --dest $BRANCH \
-            -u "github-actions[bot] <github-actions[bot]@users.noreply.github.com>" \
+            -u "github-actions[bot]" \
             -m "Deploy preview for $BRANCH"
 
       - name: 🔗 Output Deployed URL
