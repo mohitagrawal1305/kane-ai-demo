@@ -13,6 +13,11 @@ permissions:
   pull-requests: write
   issues: write
 
+# Add concurrency control to prevent multiple runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   kaneai-test:
     name: Run Kane AI Tests
@@ -24,9 +29,11 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             echo "ref=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
             echo "sha=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
           else
             echo "ref=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
             echo "sha=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+            echo "pr_number=" >> $GITHUB_OUTPUT
           fi
 
       - name: ⌛ Wait for deploy workflow
@@ -36,6 +43,7 @@ jobs:
           check-name: deploy
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 10
+          timeout-seconds: 600  # 10 minutes timeout
 
       - name: 🚀 Trigger KaneAI Tests
         id: trigger-test
@@ -47,9 +55,19 @@ jobs:
           
           # Get the preview URL
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/${{ github.event.pull_request.head.ref }}/"
+            # For PRs, use the head branch name
+            BRANCH="${{ github.event.pull_request.head.ref }}"
+            # Clean branch name for URL
+            BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9._-]/-/g')
+            PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/$BRANCH/"
+            TITLE="PR #${{ github.event.pull_request.number }}"
           else
-            PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/${GITHUB_REF#refs/heads/}/"
+            # For direct pushes, use the branch name
+            BRANCH="${GITHUB_REF#refs/heads/}"
+            # Clean branch name for URL
+            BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9._-]/-/g')
+            PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/$BRANCH/"
+            TITLE="Push to ${{ github.ref_name }}"
           fi
           
           echo "Preview URL: $PREVIEW_URL"
@@ -59,9 +77,14 @@ jobs:
           {
             "test_run_id": "$TEST_RUN_ID",
             "concurrency": 1,
+            "title": "$TITLE",
             "replaced_url": [
               {
                 "pattern_url": "https://mohitagrawal1305.github.io/kane-ai-demo/mohitagrawal1305-patch-1/",
+                "replacement_url": "$PREVIEW_URL"
+              },
+              {
+                "pattern_url": "https://mohitagrawal1305.github.io/kane-ai-demo/merge/",
                 "replacement_url": "$PREVIEW_URL"
               }
             ]
@@ -140,7 +163,7 @@ jobs:
               exit 1
             fi
             
-            echo "Waiting 30 seconds before next check..."
+            echo "Waiting 30 seconds before next check... (Attempt $i/20)"
             sleep 30
           done
           
@@ -154,10 +177,16 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const jobId = '${{ steps.trigger-test.outputs.job_id }}';
-            const comment = `## 🤖 KaneAI Test Results
+            const jobLink = `https://hyperexecute.lambdatest.com/hyperexecute/task?jobId=${jobId}`;
+            const title = '${{ steps.trigger-test.outputs.title }}';
+            const status = '${{ job.status }}' === 'success' ? '✅' : '❌';
             
-            Test execution completed! View detailed results here:
-            [View Test Results](https://hyperexecute.lambdatest.com/hyperexecute/task?jobId=${jobId})
+            const comment = `## 🤖 KaneAI Test Results for ${title}
+            
+            ${status} Test execution ${status === '✅' ? 'completed successfully' : 'failed'}!
+            
+            View detailed results here:
+            [View Test Results](${jobLink})
             `;
             
             github.rest.issues.createComment({
