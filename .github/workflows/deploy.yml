@@ -13,6 +13,8 @@ permissions:
   pull-requests: write
   deployments: write
   statuses: write
+  pages: write
+  id-token: write
 
 jobs:
   deploy:
@@ -30,6 +32,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 18
+          cache: 'npm'
 
       - name: 📦 Install dependencies
         run: npm install
@@ -55,11 +58,6 @@ jobs:
           echo "Building with base: $(echo $GITHUB_REPOSITORY)/${{ steps.branch.outputs.clean_branch }}/"
           npm run build
 
-      - name: 🔧 Configure Git
-        run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-
       - name: 🔗 Output Deployed URL
         id: url
         run: |
@@ -71,31 +69,18 @@ jobs:
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
 
-      - name: 🚀 Deploy to GitHub Pages
-        env:
-          GH_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
-          BRANCH: ${{ steps.url.outputs.branch }}
-        run: |
-          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
-          npx gh-pages -d dist \
-            -b gh-pages \
-            --dest $BRANCH \
-            -m "Deploy preview for $BRANCH"
-
-      # Add a small delay to ensure GitHub Pages deployment has started
-      - name: ⏳ Wait for GitHub Pages deployment to start
-        run: |
-          echo "Waiting for GitHub Pages deployment to start..."
-          sleep 30
-
-      - name: ⌛ Wait for GitHub Pages Deployment
-        uses: lewagon/wait-on-check-action@v1.3.1
+      - name: 📦 Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          ref: gh-pages
-          check-name: 'pages-build-deployment'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 10
-          allowed-conclusions: success,skipped,neutral
+          path: dist
+          name: github-pages-${{ steps.branch.outputs.clean_branch }}
+
+      - name: 🚀 Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ steps.branch.outputs.clean_branch }}
+          preview: true
+          path: ${{ steps.branch.outputs.clean_branch }}
 
       - name: 💬 Comment Preview URL on PR
         if: github.event_name == 'pull_request'
