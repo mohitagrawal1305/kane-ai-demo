@@ -60,11 +60,11 @@ jobs:
           echo "url=$URL" >> $GITHUB_OUTPUT
 
       - name: 🔍 Find PR for this branch (if any)
-        uses: peter-evans/find-pull-request@v5
+        uses: peter-evans/find-pull-request@v3
         id: pr
         with:
-          state: open
-          head-branch: ${{ github.ref_name }}
+            state: open
+            head-branch: ${{ github.ref_name }}
 
       - name: 💬 Comment Preview URL on PR
         if: steps.pr.outputs.number
