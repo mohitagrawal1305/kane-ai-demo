@@ -13,17 +13,12 @@ permissions:
   pull-requests: write
   deployments: write
   statuses: write
-  pages: write
-  id-token: write
 
 jobs:
   deploy:
     # Skip push events on PR branches
     if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ github.event_name == 'pull_request' && 'preview' || 'github-pages' }}
-      url: ${{ steps.url.outputs.url }}
     outputs:
       preview_url: ${{ steps.url.outputs.url }}
 
@@ -74,18 +69,37 @@ jobs:
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
 
-      - name: 📦 Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-          name: github-pages-${{ steps.branch.outputs.clean_branch }}
+      - name: 🔧 Configure Git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
 
       - name: 🚀 Deploy to GitHub Pages
-        uses: actions/deploy-pages@v4
-        with:
-          artifact_name: github-pages-${{ steps.branch.outputs.clean_branch }}
-          preview: true
-          path: ${{ steps.branch.outputs.clean_branch }}
+        run: |
+          # Deploy to the appropriate directory in gh-pages
+          npx gh-pages -d dist \
+            -b gh-pages \
+            --dest ${{ steps.branch.outputs.clean_branch }} \
+            -m "Deploy preview for ${{ steps.branch.outputs.clean_branch }}"
+
+      - name: ⌛ Wait for GitHub Pages
+        run: |
+          # Wait for the deployment to be available
+          echo "Waiting for deployment to be accessible..."
+          URL="${{ steps.url.outputs.url }}"
+          timeout=60
+          until curl --output /dev/null --silent --head --fail "$URL" || [ $timeout -eq 0 ]; do
+            echo "Waiting for deployment... ($timeout seconds remaining)"
+            sleep 5
+            ((timeout-=5))
+          done
+          
+          if [ $timeout -eq 0 ]; then
+            echo "Deployment not accessible after 60 seconds"
+            exit 1
+          fi
+          
+          echo "✅ Deployment is accessible!"
 
       - name: 💬 Comment Preview URL on PR
         if: github.event_name == 'pull_request'
