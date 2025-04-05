@@ -35,6 +35,11 @@ jobs:
           echo "Branch name: $BRANCH"
           npm run build
 
+      - name: 🔧 Configure Git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
       - name: 🚀 Deploy to gh-pages/<branch-name>
         env:
           BRANCH: ${{ steps.set_branch.outputs.branch-name }}
