@@ -75,7 +75,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const url = '${{ steps.url.outputs.url }}';
-            const comment = `## 🚀 Preview Deployment
+            const newComment = `## 🚀 Preview Deployment
 
             Your preview deployment is ready!
 
@@ -83,9 +83,32 @@ jobs:
 
             > Note: This preview will be automatically updated when you push new changes to this PR.`;
             
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            // Find existing bot comment
+            const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: comment
+              issue_number: context.issue.number,
             });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('🚀 Preview Deployment')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: newComment
+              });
+            } else {
+              // Create new comment if none exists
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: newComment
+              });
+            }
