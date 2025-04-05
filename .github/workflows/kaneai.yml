@@ -52,16 +52,8 @@ jobs:
           # Create JSON payload
           payload=$(cat <<EOF
           {
-            "test_run_id": "$TEST_RUN_ID",
-            "concurrency": 2,
-            "title": "PR #${{ github.event.pull_request.number || github.ref_name }}",
-            "region": "centralindia",
-            "replaced_url": [
-              {
-                "pattern_url": "http://localhost:5173",
-                "replacement_url": "$PREVIEW_URL"
-              }
-            ]
+            "test_id": "$TEST_RUN_ID",
+            "code_request_id": 41559
           }
           EOF
           )
@@ -69,10 +61,10 @@ jobs:
           echo "Payload: $payload"
           
           # Make API call with verbose output
-          response=$(curl --location --verbose 'https://test-manager-api.lambdatest.com/api/atm/v1/hyperexecute' \
-            --header 'accept: application/json' \
+          response=$(curl --location --verbose 'https://test-manager-api.lambdatest.com/api/atm/v1/executeHyperexecute' \
+            --header 'Accept: application/json' \
             --header 'Content-Type: application/json' \
-            --header "Authorization: Basic $LAMBDATEST_AUTH" \
+            --header "Authorization: Bearer $LAMBDATEST_AUTH" \
             --data "$payload")
           
           echo "Response: $response"
