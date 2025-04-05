@@ -82,14 +82,20 @@ jobs:
             --dest $BRANCH \
             -m "Deploy preview for $BRANCH"
 
+      # Add a small delay to ensure GitHub Pages deployment has started
+      - name: ⏳ Wait for GitHub Pages deployment to start
+        run: |
+          echo "Waiting for GitHub Pages deployment to start..."
+          sleep 30
+
       - name: ⌛ Wait for GitHub Pages Deployment
         uses: lewagon/wait-on-check-action@v1.3.1
         with:
           ref: gh-pages
-          check-name: 'pages build and deployment'
+          check-name: 'pages-build-deployment'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 10
-          timeout-seconds: 600  # 10 minutes timeout
+          allowed-conclusions: success,skipped,neutral
 
       - name: 💬 Comment Preview URL on PR
         if: github.event_name == 'pull_request'
