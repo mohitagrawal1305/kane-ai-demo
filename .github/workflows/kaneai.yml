@@ -36,7 +36,7 @@ jobs:
         id: trigger-test
         env:
           LAMBDATEST_AUTH: ${{ secrets.LAMBDATEST_AUTH }}
-          TEST_RUN_ID: e65718d5-e2c9-4186-a531-feb899f11546 #${{ secrets.KANEAI_TEST_RUN_ID }}
+          TEST_RUN_ID: ${{ secrets.KANEAI_TEST_RUN_ID }}
         run: |
           echo "Triggering KaneAI tests on LambdaTest"
           
@@ -52,8 +52,8 @@ jobs:
           # Create JSON payload
           payload=$(cat <<EOF
           {
-            "test_id": "$TEST_RUN_ID",
-            "code_request_id": 41559,
+            "test_run_id": "$TEST_RUN_ID",
+            "concurrency": 1,
             "replaced_url": [
               {
                 "pattern_url": "https://mohitagrawal1305.github.io/kane-ai-demo/mohitagrawal1305-patch-1/",
@@ -67,10 +67,10 @@ jobs:
           echo "Payload: $payload"
           
           # Make API call with verbose output
-          response=$(curl --location --verbose 'https://test-manager-api.lambdatest.com/api/atm/v1/executeHyperexecute' \
-            --header 'Accept: application/json' \
+          response=$(curl --location --verbose 'https://test-manager-api.lambdatest.com/api/atm/v1/hyperexecute' \
+            --header 'accept: application/json' \
             --header 'Content-Type: application/json' \
-            --header "Authorization: Bearer $LAMBDATEST_AUTH" \
+            --header "Authorization: Basic $LAMBDATEST_AUTH" \
             --data "$payload")
           
           echo "Response: $response"
@@ -97,7 +97,7 @@ jobs:
           fi
           
           # Extract job ID from response
-          job_id=$(echo "$response" | jq -r '.jobID // .job_id // empty')
+          job_id=$(echo "$response" | jq -r '.job_id // empty')
           
           if [[ -z "$job_id" ]]; then
             echo "❌ Failed to get job ID from response"
@@ -107,6 +107,7 @@ jobs:
           
           echo "job_id=$job_id" >> $GITHUB_OUTPUT
           echo "✅ Job triggered successfully with ID: $job_id"
+          echo "Job link: $(echo "$response" | jq -r '.job_link // empty')"
 
       - name: ⏳ Check Test Status
         run: |
