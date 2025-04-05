@@ -3,7 +3,7 @@ name: 🚀 Deploy
 on:
   push:
     branches:
-      - '**'
+      - main  # Only trigger on push to main
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
@@ -18,7 +18,12 @@ permissions:
 
 jobs:
   deploy:
+    # Skip push events on PR branches
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.url.outputs.url }}
     outputs:
       preview_url: ${{ steps.url.outputs.url }}
 
