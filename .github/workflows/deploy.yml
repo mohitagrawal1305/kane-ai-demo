@@ -1,4 +1,4 @@
-name: 🚀 Deploy Vite App to GitHub Pages (Per Branch)
+name: 🚀 Deploy and Test
 
 on:
   push:
@@ -13,6 +13,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    outputs:
+      preview_url: ${{ steps.url.outputs.url }}
 
     steps:
       - name: 📥 Checkout Code
@@ -38,6 +40,11 @@ jobs:
           echo "Building with base: /$BRANCH/"
           BRANCH=$BRANCH npm run build
 
+      - name: 🔧 Configure Git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
       - name: 🚀 Deploy to GitHub Pages
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -46,7 +53,6 @@ jobs:
           npx gh-pages -d dist \
             -b gh-pages \
             --dest $BRANCH \
-            -u "github-actions[bot]" \
             -m "Deploy preview for $BRANCH"
 
       - name: 🔗 Output Deployed URL
@@ -74,3 +80,26 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
+
+  test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v3
+
+      - name: 🧰 Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: 📦 Install dependencies
+        run: npm install
+
+      - name: 🎭 Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: 🧪 Run Playwright tests
+        run: |
+          echo "Testing against URL: ${{ needs.deploy.outputs.preview_url }}"
+          BASE_URL=${{ needs.deploy.outputs.preview_url }} npm run test:e2e
