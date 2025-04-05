@@ -69,7 +69,7 @@ jobs:
           echo "Payload: $payload"
           
           # Make API call with verbose output
-          response=$(curl --location --verbose 'https://api.lambdatest.com/automation/api/v1/hyperexecute' \
+          response=$(curl --location --verbose 'https://test-manager-api.lambdatest.com/api/atm/v1/hyperexecute' \
             --header 'accept: application/json' \
             --header 'Content-Type: application/json' \
             --header "Authorization: Basic $LAMBDATEST_AUTH" \
@@ -77,18 +77,30 @@ jobs:
           
           echo "Response: $response"
           
-          # Check if response contains error
-          error_type=$(echo $response | jq -r '.type')
-          error_message=$(echo $response | jq -r '.message')
+          # Check if response is a plain text error
+          if [[ "$response" == *"404"* || "$response" == *"page not found"* ]]; then
+            echo "❌ API Error: Invalid endpoint or authentication"
+            exit 1
+          fi
           
-          if [[ "$error_type" == "error" ]]; then
+          # Try to parse JSON response
+          if ! echo "$response" | jq . >/dev/null 2>&1; then
+            echo "❌ Invalid JSON response: $response"
+            exit 1
+          fi
+          
+          # Check for error in JSON response
+          error_type=$(echo "$response" | jq -r '.type // empty')
+          error_message=$(echo "$response" | jq -r '.message // empty')
+          
+          if [[ -n "$error_type" && "$error_type" == "error" ]]; then
             echo "❌ API Error: $error_message"
             exit 1
           fi
           
-          job_id=$(echo $response | jq -r '.job_id')
+          job_id=$(echo "$response" | jq -r '.job_id // empty')
           
-          if [[ "$job_id" == "null" || -z "$job_id" ]]; then
+          if [[ -z "$job_id" ]]; then
             echo "❌ Failed to get job ID from response"
             echo "Full response: $response"
             exit 1
