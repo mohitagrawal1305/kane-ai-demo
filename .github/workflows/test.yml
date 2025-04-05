@@ -78,8 +78,10 @@ jobs:
         env:
           BASE_URL: ${{ steps.wait-for-deployment.outputs.url }}
         run: |
-          echo "Running tests against: $BASE_URL"
-          npm run test:e2e
+          # Remove trailing slash if present
+          BASE_URL_CLEAN=$(echo "$BASE_URL" | sed 's/\/$//')
+          echo "Running tests against: $BASE_URL_CLEAN"
+          BASE_URL="$BASE_URL_CLEAN" npm run test:e2e
 
       - name: 📊 Upload test results
         if: always()
