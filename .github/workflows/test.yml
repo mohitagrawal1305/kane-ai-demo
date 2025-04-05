@@ -1,24 +1,40 @@
 name: 🧪 Run Tests
 
 on:
-  workflow_run:
-    workflows: ["🚀 Deploy"]
-    types:
-      - completed
+  push:
+    branches:
+      - '**'
   workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     steps:
+      - name: 🔍 Get branch info
+        id: branch-info
+        run: |
+          echo "ref=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+          echo "sha=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+
+      - name: ⌛ Wait for deploy workflow
+        uses: lewagon/wait-on-check-action@v1.3.1
+        with:
+          ref: ${{ steps.branch-info.outputs.sha }}
+          check-name: deploy
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+
       - name: 📥 Checkout Code
         uses: actions/checkout@v3
+        with:
+          ref: ${{ steps.branch-info.outputs.ref }}
+          fetch-depth: 0
 
       - name: 🧰 Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
+          cache: 'npm'
 
       - name: 📦 Install dependencies
         run: npm install
@@ -27,16 +43,9 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: ⌛ Wait for deployment to be accessible
+        id: wait-for-deployment
         run: |
-          # Get the branch name
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            # For workflow_run events, get the branch from the triggering workflow
-            BRANCH="${{ github.event.workflow_run.head_branch }}"
-          else
-            # For manual triggers, get the current branch
-            BRANCH=${GITHUB_REF#refs/heads/}
-          fi
-          
+          BRANCH="${{ steps.branch-info.outputs.ref }}"
           REPO=${GITHUB_REPOSITORY#*/}
           PREVIEW_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/$REPO/$BRANCH/"
           echo "Waiting for deployment at: $PREVIEW_URL"
@@ -52,6 +61,7 @@ jobs:
           while [ $TIMEOUT -gt 0 ]; do
             if check_url "$PREVIEW_URL"; then
               echo "✅ Deployment is ready!"
+              echo "url=$PREVIEW_URL" >> $GITHUB_OUTPUT
               break
             fi
             echo "Waiting for deployment... ($TIMEOUT seconds remaining)"
@@ -63,14 +73,13 @@ jobs:
             echo "❌ Deployment not ready after 2 minutes"
             exit 1
           fi
-          
-          # Export the URL for later steps
-          echo "PREVIEW_URL=$PREVIEW_URL" >> $GITHUB_ENV
 
       - name: 🧪 Run Playwright tests
         env:
-          BASE_URL: ${{ env.PREVIEW_URL }}
-        run: npm run test:e2e
+          BASE_URL: ${{ steps.wait-for-deployment.outputs.url }}
+        run: |
+          echo "Running tests against: $BASE_URL"
+          npm run test:e2e
 
       - name: 📊 Upload test results
         if: always()
